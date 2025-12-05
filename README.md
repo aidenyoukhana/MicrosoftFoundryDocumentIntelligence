@@ -5,13 +5,13 @@ A React-based document management system that uses Microsoft Azure AI Foundry fo
 ## Screenshots
 
 ### Dashboard
-![Dashboard](https://github.com/user-attachments/assets/7423380e-489d-4028-8908-610ed143656b)
+![Dashboard view showing document statistics and recent documents](https://github.com/user-attachments/assets/7423380e-489d-4028-8908-610ed143656b)
 
 ### Upload Documents
-![Upload Documents](https://github.com/user-attachments/assets/3b53815c-5765-436c-82d0-59e8e322349b)
+![Upload Documents page with drag-and-drop interface](https://github.com/user-attachments/assets/3b53815c-5765-436c-82d0-59e8e322349b)
 
 ### Document History
-![Document History](https://github.com/user-attachments/assets/f762f4ad-1068-4cf1-8403-e498e65b1fa6)
+![Document History page with search and filter capabilities](https://github.com/user-attachments/assets/f762f4ad-1068-4cf1-8403-e498e65b1fa6)
 
 ## Solution Overview
 
