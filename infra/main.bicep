@@ -59,9 +59,6 @@ param secondaryLocation string = (location == 'eastus2') ? 'westus2' : 'eastus2'
 @description('Optional. Enable/Disable usage telemetry for module.')
 param enableTelemetry bool = true
 
-@description('Optional. Enable monitoring for applicable resources.')
-param enableMonitoring bool = false
-
 @description('Optional. Tags to be applied to the resources.')
 param tags object = {
   app: 'Document Intelligence Solution'
@@ -123,143 +120,14 @@ module avmKeyVault './modules/key-vault.bicep' = {
   }
 }
 
-// ========== Storage Account ========== //
-module avmStorageAccount 'br/public:avm/res/storage/storage-account:0.20.0' = {
-  name: take('module.storage-account.${solutionSuffix}', 64)
+// ========== Managed Identity for Container Registry ========== //
+module avmContainerRegistryReader 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.1' = {
+  name: take('avm.res.managed-identity.user-assigned-identity.${solutionSuffix}', 64)
   params: {
-    name: 'st${replace(solutionSuffix, '-', '')}'
+    name: 'id-acr-${solutionSuffix}'
     location: location
-    managedIdentities: { systemAssigned: true }
-    minimumTlsVersion: 'TLS1_2'
-    enableTelemetry: enableTelemetry
-    roleAssignments: [
-      {
-        principalId: avmManagedIdentity.outputs.principalId
-        roleDefinitionIdOrName: 'Storage Blob Data Contributor'
-        principalType: 'ServicePrincipal'
-      }
-      {
-        roleDefinitionIdOrName: 'Storage Blob Data Contributor'
-        principalId: avmContainerApp_API.outputs.systemAssignedMIPrincipalId!
-        principalType: 'ServicePrincipal'
-      }
-      {
-        roleDefinitionIdOrName: 'Storage Queue Data Contributor'
-        principalId: avmContainerApp_API.outputs.systemAssignedMIPrincipalId!
-        principalType: 'ServicePrincipal'
-      }
-    ]
-    networkAcls: {
-      bypass: 'AzureServices'
-      defaultAction: 'Allow'
-    }
-    supportsHttpsTrafficOnly: true
-    accessTier: 'Hot'
     tags: tags
-    allowBlobPublicAccess: false
-    publicNetworkAccess: 'Enabled'
-    blobServices: {
-      containers: [
-        {
-          name: 'documents'
-          publicAccess: 'None'
-        }
-        {
-          name: 'processed'
-          publicAccess: 'None'
-        }
-      ]
-    }
-    queueServices: {
-      queues: [
-        {
-          name: 'document-processing-queue'
-        }
-      ]
-    }
-  }
-}
-
-// ========== AI Services (Document Intelligence) ========== //
-module avmAiServices './modules/account/document-intelligence.bicep' = {
-  name: take('module.ai-services.${solutionSuffix}', 64)
-  params: {
-    name: 'ai-${solutionSuffix}'
-    location: aiServiceLocation
-    sku: 'S0'
-    kind: 'AIServices'
-    tags: {
-      app: solutionSuffix
-      location: aiServiceLocation
-    }
-    customSubDomainName: 'ai-${solutionSuffix}'
-    roleAssignments: [
-      {
-        principalId: avmManagedIdentity.outputs.principalId
-        roleDefinitionIdOrName: '8e3af657-a8ff-443c-a75c-2fe8c4bcb635' // Owner role
-        principalType: 'ServicePrincipal'
-      }
-      {
-        principalId: avmContainerApp_API.outputs.systemAssignedMIPrincipalId!
-        roleDefinitionIdOrName: 'Cognitive Services OpenAI User'
-        principalType: 'ServicePrincipal'
-      }
-    ]
-    networkAcls: {
-      bypass: 'AzureServices'
-      defaultAction: 'Allow'
-    }
-    disableLocalAuth: true
     enableTelemetry: enableTelemetry
-    deployments: [
-      {
-        name: gptModelName
-        model: {
-          format: 'OpenAI'
-          name: gptModelName
-          version: gptModelVersion
-        }
-        sku: {
-          name: deploymentType
-          capacity: gptDeploymentCapacity
-        }
-        raiPolicyName: 'Microsoft.Default'
-      }
-    ]
-    publicNetworkAccess: 'Enabled'
-  }
-}
-
-// ========== Document Intelligence Service ========== //
-module avmDocumentIntelligence 'br/public:avm/res/cognitive-services/account:0.11.0' = {
-  name: take('avm.res.cognitive-services.document-intelligence.${solutionSuffix}', 64)
-  params: {
-    name: 'di-${solutionSuffix}'
-    location: documentIntelligenceLocation
-    sku: 'S0'
-    kind: 'FormRecognizer'
-    tags: {
-      app: solutionSuffix
-      location: documentIntelligenceLocation
-    }
-    customSubDomainName: 'di-${solutionSuffix}'
-    disableLocalAuth: false
-    enableTelemetry: enableTelemetry
-    networkAcls: {
-      bypass: 'AzureServices'
-      defaultAction: 'Allow'
-    }
-    managedIdentities: {
-      systemAssigned: true
-    }
-    roleAssignments: [
-      {
-        principalId: avmContainerApp_API.outputs.systemAssignedMIPrincipalId!
-        roleDefinitionIdOrName: 'Cognitive Services User'
-        principalType: 'ServicePrincipal'
-      }
-    ]
-    publicNetworkAccess: 'Enabled'
   }
 }
 
@@ -280,17 +148,6 @@ module avmContainerRegistry './modules/container-registry.bicep' = {
       }
     ]
     tags: tags
-  }
-}
-
-// ========== Managed Identity for Container Registry ========== //
-module avmContainerRegistryReader 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.1' = {
-  name: take('avm.res.managed-identity.user-assigned-identity.${solutionSuffix}', 64)
-  params: {
-    name: 'id-acr-${solutionSuffix}'
-    location: location
-    tags: tags
-    enableTelemetry: enableTelemetry
   }
 }
 
@@ -318,7 +175,7 @@ module avmContainerAppEnv 'br/public:avm/res/app/managed-environment:0.11.2' = {
   }
 }
 
-// ========== Container App API ========== //
+// ========== Container App API (Initial Deployment) ========== //
 module avmContainerApp_API 'br/public:avm/res/app/container-app:0.17.0' = {
   name: take('avm.res.app.container-app-api.${solutionSuffix}', 64)
   params: {
@@ -345,20 +202,8 @@ module avmContainerApp_API 'br/public:avm/res/app/container-app:0.17.0' = {
         }
         env: [
           {
-            name: 'AZURE_STORAGE_BLOB_URL'
-            value: avmStorageAccount.outputs.serviceEndpoints.blob
-          }
-          {
-            name: 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT'
-            value: avmDocumentIntelligence.outputs.endpoint
-          }
-          {
-            name: 'AZURE_OPENAI_ENDPOINT'
-            value: avmAiServices.outputs.endpoint
-          }
-          {
-            name: 'AZURE_OPENAI_MODEL'
-            value: gptModelName
+            name: 'APP_ENV'
+            value: 'prod'
           }
         ]
         probes: [
@@ -477,6 +322,156 @@ module avmContainerApp_Web 'br/public:avm/res/app/container-app:0.17.0' = {
   }
 }
 
+// ========== Storage Account ========== //
+// Note: Role assignments are done after Container Apps are created
+module avmStorageAccount 'br/public:avm/res/storage/storage-account:0.20.0' = {
+  name: take('module.storage-account.${solutionSuffix}', 64)
+  params: {
+    name: 'st${replace(solutionSuffix, '-', '')}'
+    location: location
+    managedIdentities: { systemAssigned: true }
+    minimumTlsVersion: 'TLS1_2'
+    enableTelemetry: enableTelemetry
+    roleAssignments: [
+      {
+        principalId: avmManagedIdentity.outputs.principalId
+        roleDefinitionIdOrName: 'Storage Blob Data Contributor'
+        principalType: 'ServicePrincipal'
+      }
+      {
+        roleDefinitionIdOrName: 'Storage Blob Data Contributor'
+        principalId: avmContainerApp_API.outputs.systemAssignedMIPrincipalId!
+        principalType: 'ServicePrincipal'
+      }
+      {
+        roleDefinitionIdOrName: 'Storage Queue Data Contributor'
+        principalId: avmContainerApp_API.outputs.systemAssignedMIPrincipalId!
+        principalType: 'ServicePrincipal'
+      }
+    ]
+    networkAcls: {
+      bypass: 'AzureServices'
+      defaultAction: 'Allow'
+    }
+    supportsHttpsTrafficOnly: true
+    accessTier: 'Hot'
+    tags: tags
+    allowBlobPublicAccess: false
+    publicNetworkAccess: 'Enabled'
+    blobServices: {
+      containers: [
+        {
+          name: 'documents'
+          publicAccess: 'None'
+        }
+        {
+          name: 'processed'
+          publicAccess: 'None'
+        }
+      ]
+    }
+    queueServices: {
+      queues: [
+        {
+          name: 'document-processing-queue'
+        }
+      ]
+    }
+  }
+  dependsOn: [
+    avmContainerApp_API
+  ]
+}
+
+// ========== AI Services (OpenAI) ========== //
+module avmAiServices './modules/account/document-intelligence.bicep' = {
+  name: take('module.ai-services.${solutionSuffix}', 64)
+  params: {
+    name: 'ai-${solutionSuffix}'
+    location: aiServiceLocation
+    sku: 'S0'
+    kind: 'AIServices'
+    tags: {
+      app: solutionSuffix
+      location: aiServiceLocation
+    }
+    customSubDomainName: 'ai-${solutionSuffix}'
+    roleAssignments: [
+      {
+        principalId: avmManagedIdentity.outputs.principalId
+        roleDefinitionIdOrName: '8e3af657-a8ff-443c-a75c-2fe8c4bcb635' // Owner role
+        principalType: 'ServicePrincipal'
+      }
+      {
+        principalId: avmContainerApp_API.outputs.systemAssignedMIPrincipalId!
+        roleDefinitionIdOrName: 'Cognitive Services OpenAI User'
+        principalType: 'ServicePrincipal'
+      }
+    ]
+    networkAcls: {
+      bypass: 'AzureServices'
+      defaultAction: 'Allow'
+    }
+    disableLocalAuth: true
+    enableTelemetry: enableTelemetry
+    deployments: [
+      {
+        name: gptModelName
+        model: {
+          format: 'OpenAI'
+          name: gptModelName
+          version: gptModelVersion
+        }
+        sku: {
+          name: deploymentType
+          capacity: gptDeploymentCapacity
+        }
+        raiPolicyName: 'Microsoft.Default'
+      }
+    ]
+    publicNetworkAccess: 'Enabled'
+  }
+  dependsOn: [
+    avmContainerApp_API
+  ]
+}
+
+// ========== Document Intelligence Service ========== //
+module avmDocumentIntelligence 'br/public:avm/res/cognitive-services/account:0.11.0' = {
+  name: take('avm.res.cognitive-services.document-intelligence.${solutionSuffix}', 64)
+  params: {
+    name: 'di-${solutionSuffix}'
+    location: documentIntelligenceLocation
+    sku: 'S0'
+    kind: 'FormRecognizer'
+    tags: {
+      app: solutionSuffix
+      location: documentIntelligenceLocation
+    }
+    customSubDomainName: 'di-${solutionSuffix}'
+    disableLocalAuth: false
+    enableTelemetry: enableTelemetry
+    networkAcls: {
+      bypass: 'AzureServices'
+      defaultAction: 'Allow'
+    }
+    managedIdentities: {
+      systemAssigned: true
+    }
+    roleAssignments: [
+      {
+        principalId: avmContainerApp_API.outputs.systemAssignedMIPrincipalId!
+        roleDefinitionIdOrName: 'Cognitive Services User'
+        principalType: 'ServicePrincipal'
+      }
+    ]
+    publicNetworkAccess: 'Enabled'
+  }
+  dependsOn: [
+    avmContainerApp_API
+  ]
+}
+
 // ========== Cosmos DB for Document Metadata ========== //
 module avmCosmosDB 'br/public:avm/res/document-db/database-account:0.15.0' = {
   name: take('avm.res.document-db.database-account.${solutionSuffix}', 64)
@@ -574,6 +569,14 @@ module avmAppConfig 'br/public:avm/res/app-configuration/configuration-store:0.6
     ]
     publicNetworkAccess: 'Enabled'
   }
+  dependsOn: [
+    avmContainerApp_API
+    avmContainerApp_Web
+    avmAiServices
+    avmDocumentIntelligence
+    avmStorageAccount
+    avmCosmosDB
+  ]
 }
 
 // ============ //
