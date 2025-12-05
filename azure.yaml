@@ -1,0 +1,29 @@
+name: document-intelligence
+
+requiredVersions:
+  azd: '>= 1.18.0'
+
+metadata:
+  template: document-intelligence@1.0
+  name: document-intelligence@1.0
+
+infra:
+  provider: bicep
+  path: infra
+
+hooks:
+  postprovision:
+    posix:
+      shell: sh
+      run: |
+        echo "Deployment complete!"
+        echo "Web App URL: https://${CONTAINER_WEB_APP_FQDN}"
+        echo "API URL: https://${CONTAINER_API_APP_FQDN}"
+      interactive: true
+    windows:
+      shell: pwsh
+      run: |
+        Write-Host "Deployment complete!"
+        Write-Host "Web App URL: https://$env:CONTAINER_WEB_APP_FQDN"
+        Write-Host "API URL: https://$env:CONTAINER_API_APP_FQDN"
+      interactive: true
