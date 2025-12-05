@@ -2,8 +2,6 @@
 
 A React-based document management system that uses Microsoft Azure AI Foundry for intelligent document processing, classification, and data extraction.
 
-## Screenshots
-
 ### Dashboard
 ![Dashboard view showing document statistics and recent documents](https://github.com/user-attachments/assets/7423380e-489d-4028-8908-610ed143656b)
 
